@@ -49,18 +49,21 @@ def test_cv22():
     dtype = "float32"
     input_shape = (1, 3, 224, 224) # NCHW
     w1_shape    = (32, 3, 3, 3)    # OIHW
+    input_shape1 = (1, 32, 224, 224) # NCHW
 
-    data = relay.var('data', shape=(input_shape), dtype=dtype)
+    data = relay.var('data0', shape=(input_shape), dtype=dtype)
+    data1 = relay.var('data0', shape=(input_shape1), dtype=dtype)
     weight1 = relay.var('weight1', shape=(w1_shape), dtype=dtype)
 
     begin0 = relay.annotation.compiler_begin(data, "cv22")
     begin1 = relay.annotation.compiler_begin(weight1, "cv22")
+    begin2 = relay.annotation.compiler_begin(data1, "cv22")
     node0  = relay.nn.conv2d(begin0,
                              begin1,
                              kernel_size=(3, 3),
                              padding=(1, 1),
                              kernel_layout = 'OIHW')
-    node1  = relay.clip(node0, 0, 6) # relu6
+    node1  = relay.add(node0, begin2) # relu6g
     # whole graph offload
     out2 = relay.annotation.compiler_end(node1, "cv22")
     f2   = relay.Function([data, weight1], out2)
@@ -75,7 +78,8 @@ def test_cv22():
 
     module_list = partitions_to_modules(mod2_partition)
     for name, module in module_list.items():
-        onnx_model = to_onnx(module, {}, name, path=name)
+        onnx_path = name+".onnx"
+        onnx_model = to_onnx(module, {}, name, path=onnx_path)
 
 if __name__ == '__main__':
     test_cv22()
