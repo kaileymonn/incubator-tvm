@@ -24,6 +24,25 @@ from tvm import relay
 from tvm.relay import transform
 from tvm.relay.op.annotation import compiler_begin, compiler_end
 
+# Imports for expr
+from tvm.relay.expr_functor import ExprMutator, ExprVisitor
+from tvm.relay.function import Function
+
+# Onnx imports
+from tvm.relay.converter import to_onnx
+
+def partitions_to_modules(mod):
+    module_dict = {}
+    for func in mod.get_global_vars():
+        name = func.name_hint
+        if "cv22" in name:
+            mod = tvm.IRModule.from_expr(mod[name])
+            new_mod = tvm.ir.module.IRModule()
+            new_mod["main"] = mod[name]
+            module_dict[name] = new_mod
+
+    return module_dict
+
 
 def test_cv22():
     #============= Constructing a simple graph ==============
@@ -53,6 +72,10 @@ def test_cv22():
     mod2_partition = transform.PartitionGraph()(mod2)
     print('---------- Partitioned graph ----------')
     print(mod2_partition.astext(show_meta_data=False))
+
+    module_list = partitions_to_modules(mod2_partition)
+    for name, module in module_list.items():
+        onnx_model = to_onnx(module, {}, name, path=name)
 
 if __name__ == '__main__':
     test_cv22()
