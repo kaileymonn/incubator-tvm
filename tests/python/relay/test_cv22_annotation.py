@@ -52,7 +52,7 @@ def test_cv22():
     input_shape1 = (1, 32, 224, 224) # NCHW
 
     data = relay.var('data0', shape=(input_shape), dtype=dtype)
-    data1 = relay.var('data0', shape=(input_shape1), dtype=dtype)
+    data1 = relay.var('data1', shape=(input_shape1), dtype=dtype)
     weight1 = relay.var('weight1', shape=(w1_shape), dtype=dtype)
 
     begin0 = relay.annotation.compiler_begin(data, "cv22")
