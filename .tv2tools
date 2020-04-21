@@ -1,0 +1,17 @@
+
+##############################################################################
+
+TOOL Amalgam
+
+version_regex: /^cv22\..*$/
+
+attribute: perlmod
+
+# UI
+component: amalgam                 bin
+
+# Support replay
+component: amreplay                bin
+component: amreplaycat             bin
+
+END TOOL Amalgam
