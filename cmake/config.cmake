@@ -186,6 +186,8 @@ set(USE_DNNL_CODEGEN OFF)
 
 # Whether use ONNX codegen
 set(USE_ONNX_CODEGEN OFF)
+# Whether use Ambarella (CV22) codegen
+set(USE_CV22_CODEGEN OFF)
 
 # Build ANTLR parser for Relay text format
 # Possible values:
