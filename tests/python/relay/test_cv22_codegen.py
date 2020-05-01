@@ -91,6 +91,7 @@ def test_extern_cv22():
     dtype = 'float32'
     ishape = (1, 32, 14, 14)
     w1shape = (32, 1, 3, 3)
+    out_shape = (1, 32, 14, 14)
     data0 = relay.var('data0', shape=(ishape), dtype=dtype)
     weight0 = relay.var('weight0', shape=(w1shape), dtype=dtype)
 
@@ -123,12 +124,12 @@ def test_extern_cv22():
 
     with relay.build_config(opt_level=3, disabled_pass=["AlterOpLayout"]):
         json, lib, _ = relay.build(mod, target='llvm')
-    rt_mod = tvm.contrib.graph_runtime.create(json, lib, ctx)
+    rt_mod = tvm.contrib.graph_runtime.create(json, lib, ctx=tvm.cpu())
 
     for name, data in map_inputs.items():
         rt_mod.set_input(name, data)
     rt_mod.run()
-    out = tvm.nd.empty(out_shape, ctx=ctx)
+    out = tvm.nd.empty(out_shape, ctx=tvm.cpu())
     out = rt_mod.get_output(0, out)
 
     '''
