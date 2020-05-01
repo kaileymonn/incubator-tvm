@@ -18,8 +18,8 @@
  */
 
 /*!
- * \file src/relay/backend/contrib/tensorrt/codegen_tensorrt.cc
- * \brief Implementation of TensorRT codegen APIs.
+ * \file src/relay/backend/contrib/cv22/codegen_cv22.cc
+ * \brief Implementation of CV22 codegen APIs.
  */
 
 #include <tvm/node/serialization.h>
@@ -34,7 +34,7 @@
 #include <sstream>
 #include <unordered_map>
 
-//#include "../../../../runtime/contrib/tensorrt/tensorrt_module.h"
+#include "../../../../runtime/contrib/cv22/cv22_module.h"
 #include "../codegen_c/codegen_c.h"
 
 namespace tvm {
@@ -58,7 +58,8 @@ class CV22ModuleCodegen : public CSourceModuleCodegenBase {
     CHECK(func.defined()) << "Input error: expect a Relay function.";
     // Record the external symbol for runtime lookup.
     auto sid = GetExtSymbol(func);
-    serialized_subgraphs_[sid] = SaveJSON(func);
+    LOG(INFO) << "Running GenFunc for " << sid;
+    serialized_subgraphs_[sid] = "CV22 Test";
   }
 
   /*!
@@ -67,6 +68,7 @@ class CV22ModuleCodegen : public CSourceModuleCodegenBase {
    * \return The TensorRT runtime module.
    */
   runtime::Module CreateCSourceModule(const ObjectRef& ref) override {
+    LOG(INFO) << "In function CreateCSourceModule ";
     if (ref->IsInstance<FunctionNode>()) {
       GenFunc(Downcast<Function>(ref));
     } else if (ref->IsInstance<IRModuleNode>()) {
@@ -78,7 +80,7 @@ class CV22ModuleCodegen : public CSourceModuleCodegenBase {
       LOG(FATAL)
           << "The input ref is expected to be a Relay function or module.";
     }
-    return runtime::CV22RTModuleCreate(serialized_subgraphs_);
+    return runtime::CV22ModuleCreate(serialized_subgraphs_);
   }
 
  private:
