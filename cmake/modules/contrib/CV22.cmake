@@ -19,5 +19,8 @@ if(USE_CV22_CODEGEN)
   message(STATUS "Build with CV22")
   file(GLOB CV22_RELAY_CONTRIB_SRC src/relay/backend/contrib/cv22/codegen_cv22.cc)
   list(APPEND COMPILER_SRCS ${CV22_RELAY_CONTRIB_SRC})
+
+  file(GLOB CV22_CONTRIB_SRC src/runtime/contrib/cv22/*)
+  list(APPEND RUNTIME_SRCS ${CV22_CONTRIB_SRC})
 endif()
 
