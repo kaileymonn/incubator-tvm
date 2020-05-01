@@ -88,9 +88,6 @@ def test_extern_cv22():
         print("skip because CV22 codegen is not available")
         return
 
-    print('CV22 codegen found! Yay!')
-    return
-
     dtype = 'float32'
     ishape = (1, 32, 14, 14)
     w1shape = (32, 1, 3, 3)
@@ -116,17 +113,30 @@ def test_extern_cv22():
     ref_mod = tvm.IRModule()
     ref_mod['main'] = f
 
-    f = set_external_func_attr(f, "dnnl", "dnnl_0")
+    f = set_external_func_attr(f, "cv22", "cv22_0")
     call = relay.Call(f, [data0, weight0, weight0])
     mod = tvm.IRModule.from_expr(call)
 
     i_data = np.random.uniform(0, 1, ishape).astype(dtype)
     w_data = np.random.uniform(0, 1, w1shape).astype(dtype)
+    map_inputs = {"data0": i_data, "weight0": w_data}
 
+    with relay.build_config(opt_level=3, disabled_pass=["AlterOpLayout"]):
+        json, lib, _ = relay.build(mod, target='llvm')
+    rt_mod = tvm.contrib.graph_runtime.create(json, lib, ctx)
+
+    for name, data in map_inputs.items():
+        rt_mod.set_input(name, data)
+    rt_mod.run()
+    out = tvm.nd.empty(out_shape, ctx=ctx)
+    out = rt_mod.get_output(0, out)
+
+    '''
     ref_ex = relay.create_executor("graph", mod=ref_mod, ctx=tvm.cpu())
     ref_res = ref_ex.evaluate()(i_data, w_data, w_data)
     check_result(mod, {"data0": i_data, "weight0": w_data},
                  (1, 32, 14, 14), ref_res.asnumpy(), tol=1e-5)
+    '''
 
 if __name__ == "__main__":
     test_extern_cv22()
