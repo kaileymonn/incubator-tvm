@@ -31,6 +31,45 @@ from tvm.relay.function import Function
 # Onnx imports
 from tvm.relay.converter import to_onnx
 
+# CV22 compilation import
+import sys
+import subprocess
+import onnx
+
+cnn_utils_path = subprocess.check_output(['tv2', '-basepath', 'CnnUtils'])
+cnn_utils_path = cnn_utils_path.decode().rstrip('\n')
+tv2_p = cnn_utils_path + '/packages/'
+if tv2_p not in sys.path:
+    sys.path.append(tv2_p)
+else:
+    raise Exception('%s not found' % tv2_p)
+
+import cvflow_backend
+from cvflow_backend.ir_utils import ir_helper
+
+def cvflow_compilation(model_path, graphdesc_path, output_name, output_folder='amba_tvm_test'):
+
+    modelproto = onnx.load(model_path)
+
+    graphdesc_bytes = None
+    with open(graphdesc_path, mode='rb') as f:
+        graphdesc_bytes = f.read()
+
+    ckpt_ambapb = cvflow_backend.prepare(model_bytes=modelproto.SerializeToString(), \
+                                         graph_desc_bytes=graphdesc_bytes, \
+                                         framework='onnx', \
+                                         metagraph_type='checkpoint', \
+                                         output_name=output_name, \
+                                         output_folder=output_folder, \
+                                         log_dir=output_folder+'/logs')
+
+    save_path = ir_helper.save_model(ckpt_ambapb, \
+                                     output_name, \
+                                     output_folder)
+    print('Saved compiled model to: %s' % save_path)
+
+    return save_path
+
 def partitions_to_modules(mod):
     module_dict = {}
     for func in mod.get_global_vars():
@@ -80,6 +119,12 @@ def test_cv22():
     for name, module in module_list.items():
         onnx_path = name+".onnx"
         onnx_model = to_onnx(module, {}, name, path=onnx_path)
+        print('Saved onnx file %s to disk\n' % onnx_path)
+
+        # invoke cvflow compilation
+        cvflow_compilation(model_path=onnx_path, \
+                           graphdesc_path='splits_new.json', \
+                           output_name=name)
 
 if __name__ == '__main__':
     test_cv22()
