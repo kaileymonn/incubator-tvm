@@ -59,7 +59,7 @@ class CV22ModuleCodegen : public CSourceModuleCodegenBase {
     // Record the external symbol for runtime lookup.
     auto sid = GetExtSymbol(func);
     LOG(INFO) << "Running GenFunc for " << sid;
-    serialized_subgraphs_[sid] = "CV22 Test";
+    serialized_subgraphs_[sid] = "amba_tvm_test/" + sid + ".ambapb.ckpt.onnx";
   }
 
   /*!

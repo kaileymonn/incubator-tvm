@@ -55,13 +55,19 @@ class CV22Module : public runtime::ModuleNode {
     // Returning nullptr tells TVM that the function is not in this module, so
     // it can look for the correct one.
     auto it_subgraph = serialized_subgraphs_.find(name);
-    LOG(INFO) << "CV22Module GetFunction init";
     if (it_subgraph == serialized_subgraphs_.end()) {
       return PackedFunc(nullptr);
     }
     // Generate an external packed function
     return PackedFunc([this, name](tvm::TVMArgs args, tvm::TVMRetValue* rv) {
+
       LOG(INFO) << "CV22Module GetFunction PackedFunc";
+
+      std::string cmd = "onnx_print_graph_summary.py -p " + serialized_subgraphs_[name];
+      system(cmd.c_str());
+
+      LOG(INFO) << "CV22Module GetFunction: finished running print graph summary";
+
     });
   }
 
