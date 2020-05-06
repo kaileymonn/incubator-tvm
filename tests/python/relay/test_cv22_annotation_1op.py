@@ -97,18 +97,17 @@ def test_cv22():
 
     begin0 = relay.annotation.compiler_begin(data0, "cv22")
     begin1 = relay.annotation.compiler_begin(weight0, "cv22")
-    begin2 = relay.annotation.compiler_begin(data1, "cv22")
-
     node0  = relay.nn.conv2d(begin0,
                              begin1,
                              kernel_size=(3, 3),
                              padding=(1, 1),
                              kernel_layout = 'OIHW')
-    node1  = relay.add(node0, begin2)
+    out0 = relay.annotation.compiler_end(node0, "cv22")
+
+    node1  = relay.add(out0, data1)
 
     # whole graph offload
-    out2 = relay.annotation.compiler_end(node1, "cv22")
-    f2   = relay.Function([data0, weight0, data1], out2)
+    f2   = relay.Function([data0, weight0, data1], node1)
     mod2 = tvm.IRModule.from_expr(f2)
 
     print('---------- Annotated graph ----------')
@@ -131,7 +130,7 @@ def test_cv22():
 
         # invoke cvflow compilation
         cvflow_compilation(model_path=onnx_path, \
-                           graphdesc_path='splits_new.json', \
+                           graphdesc_path='splits_new_1op.json', \
                            output_name=name)
         input('\n[test_cv22_annotation.py] Completed cv22 compilation. Hit enter key to continue')
 
