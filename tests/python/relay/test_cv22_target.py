@@ -31,19 +31,51 @@ from tvm.relay.function import Function
 # Onnx imports
 from tvm.relay.converter import to_onnx
 
+# CV22 compilation import
+import sys
+import subprocess
 import onnx
-import mxnet as mx
-from gluoncv import model_zoo, data, utils
-import gluoncv
-import tvm.relay.op.contrib.cv22
+
+cnn_utils_path = subprocess.check_output(['tv2', '-basepath', 'CnnUtils'])
+cnn_utils_path = cnn_utils_path.decode().rstrip('\n')
+tv2_p = cnn_utils_path + '/packages/'
+if tv2_p not in sys.path:
+    sys.path.append(tv2_p)
+else:
+    raise Exception('%s not found' % tv2_p)
+
+import cvflow_backend
+from cvflow_backend.ir_utils import ir_helper
+
+def cvflow_compilation(model_path, graphdesc_path, output_name, output_folder='amba_tvm_test'):
+
+    modelproto = onnx.load(model_path)
+
+    graphdesc_bytes = None
+    with open(graphdesc_path, mode='rb') as f:
+        graphdesc_bytes = f.read()
+
+    ckpt_ambapb = cvflow_backend.prepare(model_bytes=modelproto.SerializeToString(), \
+                                         graph_desc_bytes=graphdesc_bytes, \
+                                         framework='onnx', \
+                                         metagraph_type='checkpoint', \
+                                         output_name=output_name, \
+                                         output_folder=output_folder, \
+                                         log_dir=output_folder+'/logs')
+
+    save_path = ir_helper.save_model(ckpt_ambapb, \
+                                     output_name, \
+                                     output_folder)
+    print('Saved compiled model to: %s' % save_path)
+
+    return save_path
 
 def partitions_to_modules(mod):
     module_dict = {}
-    original_mod = mod
     for func in mod.get_global_vars():
         name = func.name_hint
         if "cv22" in name:
-            mod = tvm.IRModule.from_expr(original_mod[name])
+            mod = tvm.IRModule.from_expr(mod[name])
             new_mod = tvm.ir.module.IRModule()
             new_mod["main"] = mod[name]
             module_dict[name] = new_mod
@@ -51,7 +83,7 @@ def partitions_to_modules(mod):
     return module_dict
 
 
-def test_manual():
+def test_cv22():
     #============= Constructing a simple graph ==============
     dtype = "float32"
     i0_shape = (1, 3, 224, 224) # NCHW
@@ -81,55 +113,47 @@ def test_manual():
 
     print('---------- Annotated graph ----------')
     print(mod2.astext(show_meta_data=False))
+    input('\n[test_cv22_annotation.py] Completed IRModule creation. Hit enter key to continue')
 
     # graph partitioning
     mod2_partition = transform.PartitionGraph()(mod2)
     print('---------- Partitioned graph ----------')
     print(mod2_partition.astext(show_meta_data=False))
+    input('\n[test_cv22_annotation.py] Completed graph partitioning. Hit enter key to continue')
 
     # conver to onnx
     module_list = partitions_to_modules(mod2_partition)
     for name, module in module_list.items():
         onnx_path = name+".onnx"
         onnx_model = to_onnx(module, {}, name, path=onnx_path)
+        print('Saved onnx file %s to disk\n' % onnx_path)
+        input('\n[test_cv22_annotation.py] Completed relay to onnx conversion. Hit enter key to continue')
 
-def test_classification():
-    # TODO: Debug errors. ## == TVM ERROR in parsing. # == Some error in onnx or partitioning
+        # invoke cvflow compilation
+        cvflow_compilation(model_path=onnx_path, \
+                           graphdesc_path='splits_new.json', \
+                           output_name=name)
+        input('\n[test_cv22_annotation.py] Completed cv22 compilation. Hit enter key to continue')
 
-    model_list = {
-        'ResNet18_v1' : 'ResNet18_v1',
-        'MobileNet1.0' : 'MobileNet1',
-        ##'VGG11' : 'VGG11',
-        #'SqueezeNet1.0' : 'SqueezeNet1.0',
-        ##'DenseNet121' : 'DenseNet121',
-        ##'AlexNet' : 'AlexNet',
-        'InceptionV3' : 'InceptionV3',
+    # tvm compilation
+    with relay.build_config(opt_level=3, disabled_pass=["AlterOpLayout"]):
+        json, lib, _ = relay.build(mod2_partition, target='llvm')
+    input('\n[test_cv22_annotation.py] Completed tvm compilation. Hit enter key to continue')
 
-    }
+    # test runtime
+    i0_data = np.random.uniform(0, 1, i0_shape).astype(dtype)
+    w0_data = np.random.uniform(0, 1, w0_shape).astype(dtype)
+    i1_data = np.random.uniform(0, 1, i1_shape).astype(dtype)
+    map_inputs = {"data0": i0_data, "weight0": w0_data, "data1": i1_data}
 
-    for model_name in model_list:
-        print(model_name)
-        model = gluoncv.model_zoo.get_model(model_name, pretrained=True)
-        mod, params = relay.frontend.from_mxnet(model, {'data':(1,3,480,480)})
+    rt_mod = tvm.contrib.graph_runtime.create(json, lib, ctx=tvm.cpu())
+    for name, data in map_inputs.items():
+        rt_mod.set_input(name, data)
+    rt_mod.run()
+    out = tvm.nd.empty(out_shape, ctx=tvm.cpu())
+    out = rt_mod.get_output(0, out)
 
-        print('---------- Original Graph ----------')
-        mod = relay.transform.RemoveUnusedFunctions()(mod)
-        print(mod.astext(show_meta_data=False))
-        print("---------- Annotated Graph ----------")
-        mod = transform.AnnotateTarget("cv22")(mod)
-        print(mod.astext(show_meta_data=False))
-        print("---------- Merge Compiler Regions ----------")
-        mod = transform.MergeCompilerRegions()(mod)
-        print(mod.astext(show_meta_data=False))
-        print("---------- Partioned Graph ----------")
-        mod = transform.PartitionGraph()(mod)
-        print(mod.astext(show_meta_data=False))
-
-        module_list = partitions_to_modules(mod)
-        for name, module in module_list.items():
-            onnx_path = name+".onnx"
-            onnx_model = to_onnx(module, {}, name, path=onnx_path)
+    input('\n[test_cv22_annotation.py] Completed runtime execution. Hit enter key to continue')
 
 if __name__ == '__main__':
-    #test_manual()
-    test_classification()
+    test_cv22()
