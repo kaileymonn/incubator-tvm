@@ -41,8 +41,8 @@ namespace runtime {
 class CV22Module : public runtime::ModuleNode {
  public:
   explicit CV22Module(
-      const std::unordered_map<std::string, std::string>& serialized_subgraphs)
-      : serialized_subgraphs_(serialized_subgraphs) {
+      const std::unordered_map<std::string, subgraph_attr_t>& cv22_subgraphs)
+      : cv22_subgraphs_(cv22_subgraphs) {
       LOG(INFO) << "CV22Module Constructor";
   }
 
@@ -54,8 +54,8 @@ class CV22Module : public runtime::ModuleNode {
                          const ObjectPtr<Object>& sptr_to_self) final {
     // Returning nullptr tells TVM that the function is not in this module, so
     // it can look for the correct one.
-    auto it_subgraph = serialized_subgraphs_.find(name);
-    if (it_subgraph == serialized_subgraphs_.end()) {
+    auto it_subgraph = cv22_subgraphs_.find(name);
+    if (it_subgraph == cv22_subgraphs_.end()) {
       return PackedFunc(nullptr);
     }
     // Generate an external packed function
@@ -63,10 +63,24 @@ class CV22Module : public runtime::ModuleNode {
 
       LOG(INFO) << "CV22Module GetFunction PackedFunc";
 
-      std::string cmd = "onnx_print_graph_summary.py -p " + serialized_subgraphs_[name];
-      system(cmd.c_str());
+      LOG(INFO) << "Filename: " << cv22_subgraphs_[name].filename;
+      std::string cmd = "evaluate.py --metagraph " + cv22_subgraphs_[name].filename;
 
-      LOG(INFO) << "CV22Module GetFunction: finished running print graph summary";
+      std::vector<std::string>& inputs = cv22_subgraphs_[name].inputs;
+      for (size_t i = 0; i < inputs.size(); ++i) {
+          LOG(INFO) << "Input " << i << ": " << inputs[i];
+          cmd += " --inputdata " + inputs[i] + "=" + inputs[i] + ".bin";
+      }
+
+      std::vector<std::string>& outputs = cv22_subgraphs_[name].outputs;
+      for (size_t o = 0; o < outputs.size(); ++o) {
+          LOG(INFO) << "Output " << o << ": " << outputs[o];
+      }
+      cmd += " --output_folder amba_tvm_test/evaluation_outputs --log_dir amba_tvm_test/evaluation_outputs/logs";
+
+      LOG(INFO) << "Cmd: " << cmd;
+
+      system(cmd.c_str());
 
     });
   }
@@ -102,37 +116,36 @@ class CV22Module : public runtime::ModuleNode {
   }
 
  private:
-  /*! \brief Relay program serialized using SaveJSON */
-  std::unordered_map<std::string, std::string> serialized_subgraphs_;
+  std::unordered_map<std::string, subgraph_attr_t> cv22_subgraphs_;
 
   /*! \brief Serialize this module to a string. To be used during codegen. */
   std::string SerializeModuleToString() {
     std::ostringstream os;
     dmlc::JSONWriter writer(&os);
     writer.BeginObject();
-    writer.WriteObjectKeyValue("subgraphs", serialized_subgraphs_);
+    //writer.WriteObjectKeyValue("subgraphs", cv22_subgraphs_);
     writer.EndObject();
     return os.str();
   }
 
   /*! \brief Load serialized module from string created by SerializeModuleToString. */
   static Module CreateModuleFromString(const std::string& str) {
-    std::unordered_map<std::string, std::string> serialized_subgraphs;
+    std::unordered_map<std::string, subgraph_attr_t> cv22_subgraphs;
     std::istringstream is(str);
     dmlc::JSONReader reader(&is);
     dmlc::JSONObjectReadHelper helper;
-    helper.DeclareField("subgraphs", &serialized_subgraphs);
-    helper.ReadAllFields(&reader);
-    auto n = make_object<CV22Module>(serialized_subgraphs);
+    //helper.DeclareField("subgraphs", &cv22_subgraphs);
+    //helper.ReadAllFields(&reader);
+    auto n = make_object<CV22Module>(cv22_subgraphs);
     return Module(n);
   }
 
  };
 
 Module CV22ModuleCreate(
-    const std::unordered_map<std::string, std::string>& serialized_subgraphs) {
+    const std::unordered_map<std::string, subgraph_attr_t>& cv22_subgraphs) {
   LOG(INFO) << "In CV22ModuleCreate";
-  auto n = make_object<CV22Module>(serialized_subgraphs);
+  auto n = make_object<CV22Module>(cv22_subgraphs);
   return Module(n);
 }
 

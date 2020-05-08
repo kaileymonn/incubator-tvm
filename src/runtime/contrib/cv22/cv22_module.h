@@ -27,19 +27,25 @@
 #include <tvm/ir/module.h>
 
 #include <string>
+#include <vector>
 #include <unordered_map>
+
+typedef struct {
+    std::string filename;
+    std::vector<std::string> inputs;
+    std::vector<std::string> outputs;
+} subgraph_attr_t;
 
 namespace tvm {
 namespace runtime {
 
 /*!
  * \brief Create a CV22Module.
- * \param serialized_subgraphs Function name -> Relay func serialized with
- * SaveJSON.
+ * \param cv22_subgraphs <TBD>
  * \return CV22Module created from subgraphs.
  */
 Module CV22ModuleCreate(
-    const std::unordered_map<std::string, std::string>& serialized_subgraphs);
+    const std::unordered_map<std::string, subgraph_attr_t>& cv22_subgraphs);
 
 }  // namespace runtime
 }  // namespace tvm
