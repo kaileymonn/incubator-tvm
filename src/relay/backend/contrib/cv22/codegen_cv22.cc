@@ -59,7 +59,21 @@ class CV22ModuleCodegen : public CSourceModuleCodegenBase {
     // Record the external symbol for runtime lookup.
     auto sid = GetExtSymbol(func);
     LOG(INFO) << "Running GenFunc for " << sid;
-    serialized_subgraphs_[sid] = "amba_tvm_test/" + sid + ".ambapb.ckpt.onnx";
+
+    subgraph_attr_t attr = {};
+
+    // CVFlow compiler is expected to create ambapb in the curren location
+    attr.filename = "amba_tvm_test/" + sid + ".ambapb.ckpt.onnx";
+
+    // (TBD) check if file exists
+
+    for (size_t i = 0; i < func->params.size(); ++i) {
+        attr.inputs.push_back(func->params[i]->name_hint());
+    }
+
+    // (TBD) get outputs from print graph summary json
+
+    cv22_subgraphs_[sid] = attr;
   }
 
   /*!
@@ -80,12 +94,12 @@ class CV22ModuleCodegen : public CSourceModuleCodegenBase {
       LOG(FATAL)
           << "The input ref is expected to be a Relay function or module.";
     }
-    return runtime::CV22ModuleCreate(serialized_subgraphs_);
+    return runtime::CV22ModuleCreate(cv22_subgraphs_);
   }
 
  private:
   /*! \brief Map of external symbol to serialized Relay functions. */
-  std::unordered_map<std::string, std::string> serialized_subgraphs_;
+  std::unordered_map<std::string, subgraph_attr_t> cv22_subgraphs_;
 };
 
 /*!
