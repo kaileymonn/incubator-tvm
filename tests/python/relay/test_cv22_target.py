@@ -1,22 +1,23 @@
-# Licensed to the Apache Software Foundation (ASF) under one
-# or more contributor license agreements.  See the NOTICE file
+# licensed to the apache software foundation (asf) under one
+# or more contributor license agreements.  see the notice file
 # distributed with this work for additional information
-# regarding copyright ownership.  The ASF licenses this file
-# to you under the Apache License, Version 2.0 (the
-# "License"); you may not use this file except in compliance
-# with the License.  You may obtain a copy of the License at
+# regarding copyright ownership.  the asf licenses this file
+# to you under the apache license, version 2.0 (the
+# "license"); you may not use this file except in compliance
+# with the license.  you may obtain a copy of the license at
 #
-#   http://www.apache.org/licenses/LICENSE-2.0
+#   http://www.apache.org/licenses/license-2.0
 #
-# Unless required by applicable law or agreed to in writing,
-# software distributed under the License is distributed on an
-# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-# KIND, either express or implied.  See the License for the
+# unless required by applicable law or agreed to in writing,
+# software distributed under the license is distributed on an
+# "as is" basis, without warranties or conditions of any
+# kind, either express or implied.  see the license for the
 # specific language governing permissions and limitations
-# under the License.
+# under the license.
 """Unit tests for graph partitioning."""
 import os
 import numpy as np
+from shutil import rmtree
 
 import tvm
 import tvm.relay.testing
@@ -31,120 +32,63 @@ from tvm.relay.function import Function
 # Onnx imports
 from tvm.relay.converter import to_onnx
 
-# CV22 compilation import
-import sys
-import subprocess
-import onnx
-
-cnn_utils_path = subprocess.check_output(['tv2', '-basepath', 'CnnUtils'])
-cnn_utils_path = cnn_utils_path.decode().rstrip('\n')
-tv2_p = cnn_utils_path + '/packages/'
-if tv2_p not in sys.path:
-    sys.path.append(tv2_p)
-else:
-    raise Exception('%s not found' % tv2_p)
-
-import cvflow_backend
-from cvflow_backend.ir_utils import ir_helper
-
-def cvflow_compilation(model_path, graphdesc_path, output_name, output_folder='amba_tvm_test'):
-
-    modelproto = onnx.load(model_path)
-
-    graphdesc_bytes = None
-    with open(graphdesc_path, mode='rb') as f:
-        graphdesc_bytes = f.read()
-
-    ckpt_ambapb = cvflow_backend.prepare(model_bytes=modelproto.SerializeToString(), \
-                                         graph_desc_bytes=graphdesc_bytes, \
-                                         framework='onnx', \
-                                         metagraph_type='checkpoint', \
-                                         output_name=output_name, \
-                                         output_folder=output_folder, \
-                                         log_dir=output_folder+'/logs')
-
-    save_path = ir_helper.save_model(ckpt_ambapb, \
-                                     output_name, \
-                                     output_folder)
-    print('Saved compiled model to: %s' % save_path)
-
-    return save_path
-
-def partitions_to_modules(mod):
-    module_dict = {}
-    for func in mod.get_global_vars():
-        name = func.name_hint
-        if "cv22" in name:
-            mod = tvm.IRModule.from_expr(mod[name])
-            new_mod = tvm.ir.module.IRModule()
-            new_mod["main"] = mod[name]
-            module_dict[name] = new_mod
-
-    return module_dict
-
+# CVFlow imports
+from cvflow_compiler import partitions_to_modules,cvflow_compilation
 
 def test_cv22():
     #============= Constructing a simple graph ==============
     dtype = "float32"
-    i0_shape = (1, 3, 224, 224) # NCHW
-    w0_shape = (32, 3, 3, 3)    # OIHW
-    i1_shape = (1, 32, 224, 224) # NCHW
+    i_shape = (1, 3, 224, 224) # NCHW
     out_shape = (1, 32, 224, 224) # NCHW
 
-    data0 = relay.var('data0', shape=(i0_shape), dtype=dtype)
-    weight0 = relay.var('weight0', shape=(w0_shape), dtype=dtype)
-    data1 = relay.var('data1', shape=(i1_shape), dtype=dtype)
+    data0 = relay.var('data0', shape=(i_shape), dtype=dtype)
+    data1 = relay.var('data1', shape=(i_shape), dtype=dtype)
 
     begin0 = relay.annotation.compiler_begin(data0, "cv22")
-    begin1 = relay.annotation.compiler_begin(weight0, "cv22")
-    begin2 = relay.annotation.compiler_begin(data1, "cv22")
+    begin1 = relay.annotation.compiler_begin(data1, "cv22")
 
-    node0  = relay.nn.conv2d(begin0,
-                             begin1,
-                             kernel_size=(3, 3),
-                             padding=(1, 1),
-                             kernel_layout = 'OIHW')
-    node1  = relay.add(node0, begin2)
+    node0  = relay.multiply(begin0, begin1)
+    node1  = relay.add(node0, begin1)
 
     # whole graph offload
-    out2 = relay.annotation.compiler_end(node1, "cv22")
-    f2   = relay.Function([data0, weight0, data1], out2)
-    mod2 = tvm.IRModule.from_expr(f2)
+    out = relay.annotation.compiler_end(node1, "cv22")
+    f2  = relay.Function([data0, data1], out)
+    mod = tvm.IRModule.from_expr(f2)
 
     print('---------- Annotated graph ----------')
-    print(mod2.astext(show_meta_data=False))
-    input('\n[test_cv22_annotation.py] Completed IRModule creation. Hit enter key to continue')
+    print(mod.astext(show_meta_data=False))
 
     # graph partitioning
-    mod2_partition = transform.PartitionGraph()(mod2)
+    mod_partition = transform.PartitionGraph()(mod)
     print('---------- Partitioned graph ----------')
-    print(mod2_partition.astext(show_meta_data=False))
-    input('\n[test_cv22_annotation.py] Completed graph partitioning. Hit enter key to continue')
+    print(mod_partition.astext(show_meta_data=False))
 
-    # conver to onnx
-    module_list = partitions_to_modules(mod2_partition)
+    # remove existing dir
+    output_folder = '/tmp/test_amba/'
+    rmtree(output_folder, ignore_errors=True)
+
+    module_list = partitions_to_modules(mod_partition)
     for name, module in module_list.items():
+        # convert to onnx
         onnx_path = name+".onnx"
         onnx_model = to_onnx(module, {}, name, path=onnx_path)
         print('Saved onnx file %s to disk\n' % onnx_path)
-        input('\n[test_cv22_annotation.py] Completed relay to onnx conversion. Hit enter key to continue')
 
         # invoke cvflow compilation
-        cvflow_compilation(model_path=onnx_path, \
-                           graphdesc_path='splits_new.json', \
-                           output_name=name)
-        input('\n[test_cv22_annotation.py] Completed cv22 compilation. Hit enter key to continue')
+        save_path = cvflow_compilation(model_path=onnx_path, \
+                                       graphdesc_path='splits.json', \
+                                       output_name=name, \
+                                       output_folder=output_folder)
+        print('Saved compiled model to: %s\n' % save_path)
 
     # tvm compilation
     with relay.build_config(opt_level=3, disabled_pass=["AlterOpLayout"]):
-        json, lib, _ = relay.build(mod2_partition, target='llvm')
-    input('\n[test_cv22_annotation.py] Completed tvm compilation. Hit enter key to continue')
+        json, lib, _ = relay.build(mod_partition, target='llvm')
 
     # test runtime
-    i0_data = np.random.uniform(0, 1, i0_shape).astype(dtype)
-    w0_data = np.random.uniform(0, 1, w0_shape).astype(dtype)
-    i1_data = np.random.uniform(0, 1, i1_shape).astype(dtype)
-    map_inputs = {"data0": i0_data, "weight0": w0_data, "data1": i1_data}
+    i0_data = np.random.uniform(0, 1, i_shape).astype(dtype)
+    i1_data = np.random.uniform(0, 1, i_shape).astype(dtype)
+    map_inputs = {"data0": i0_data, "data1": i1_data}
 
     rt_mod = tvm.contrib.graph_runtime.create(json, lib, ctx=tvm.cpu())
     for name, data in map_inputs.items():
@@ -152,8 +96,6 @@ def test_cv22():
     rt_mod.run()
     out = tvm.nd.empty(out_shape, ctx=tvm.cpu())
     out = rt_mod.get_output(0, out)
-
-    input('\n[test_cv22_annotation.py] Completed runtime execution. Hit enter key to continue')
 
 if __name__ == '__main__':
     test_cv22()
