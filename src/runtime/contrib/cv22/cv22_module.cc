@@ -22,6 +22,7 @@
  */
 
 #include <stdlib.h>
+#include <sys/stat.h>
 #include <tvm/node/serialization.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/type.h>
@@ -66,10 +67,40 @@ class CV22Module : public runtime::ModuleNode {
       LOG(INFO) << "Filename: " << cv22_subgraphs_[name].filename;
       std::string cmd = "evaluate.py --metagraph " + cv22_subgraphs_[name].filename;
 
+      std::string inp_dir = "/tmp/amba/";
+      mkdir(inp_dir.c_str(), 0777);
+
       std::vector<std::string>& inputs = cv22_subgraphs_[name].inputs;
       for (size_t i = 0; i < inputs.size(); ++i) {
           LOG(INFO) << "Input " << i << ": " << inputs[i];
-          cmd += " --inputdata " + inputs[i] + "=" + inputs[i] + ".bin";
+
+          DLTensor* arg = args[i];
+
+          float* data = reinterpret_cast<float*>(arg->data);
+
+          int buf_size = 1;
+          LOG(INFO) << "Shape:";
+          for (int j = 0; j < arg->ndim; ++j) {
+               LOG(INFO) << arg->shape[j];
+               buf_size *= arg->shape[j];
+          }
+          LOG(INFO) << "Size: " << buf_size;
+
+          std::string in_fname = inp_dir + inputs[i] + ".bin";
+
+          std::ofstream fout;
+          fout.open(in_fname, std::ios::binary);
+
+          if (fout.is_open()) {
+              fout.write((char*) data, buf_size*sizeof(float));
+          }
+          else {
+              // (TBD) error
+          }
+
+          fout.close();
+
+          cmd += " --inputdata " + inputs[i] + "=" + in_fname;
       }
 
       std::vector<std::string>& outputs = cv22_subgraphs_[name].outputs;
