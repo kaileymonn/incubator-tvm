@@ -45,6 +45,10 @@ class CV22Module : public runtime::ModuleNode {
       const std::unordered_map<std::string, subgraph_attr_t>& cv22_subgraphs)
       : cv22_subgraphs_(cv22_subgraphs) {
       LOG(INFO) << "CV22Module Constructor";
+      for (auto it = cv22_subgraphs_.begin(); it != cv22_subgraphs_.end(); it++) {
+          subgraph_attr_t& attr = it->second;
+          subgr_fnames_.insert( std::pair<std::string,std::string>(it->first,attr.filename) );
+      }
   }
 
   ~CV22Module() {
@@ -148,13 +152,14 @@ class CV22Module : public runtime::ModuleNode {
 
  private:
   std::unordered_map<std::string, subgraph_attr_t> cv22_subgraphs_;
+  std::unordered_map<std::string, std::string> subgr_fnames_;
 
   /*! \brief Serialize this module to a string. To be used during codegen. */
   std::string SerializeModuleToString() {
     std::ostringstream os;
     dmlc::JSONWriter writer(&os);
     writer.BeginObject();
-    //writer.WriteObjectKeyValue("subgraphs", cv22_subgraphs_);
+    writer.WriteObjectKeyValue("subgraphs", subgr_fnames_);
     writer.EndObject();
     return os.str();
   }
@@ -162,11 +167,18 @@ class CV22Module : public runtime::ModuleNode {
   /*! \brief Load serialized module from string created by SerializeModuleToString. */
   static Module CreateModuleFromString(const std::string& str) {
     std::unordered_map<std::string, subgraph_attr_t> cv22_subgraphs;
+    std::unordered_map<std::string, std::string> subgr_fnames;
+
     std::istringstream is(str);
     dmlc::JSONReader reader(&is);
     dmlc::JSONObjectReadHelper helper;
-    //helper.DeclareField("subgraphs", &cv22_subgraphs);
-    //helper.ReadAllFields(&reader);
+    helper.DeclareField("subgraphs", &subgr_fnames);
+    helper.ReadAllFields(&reader);
+
+    for (auto it = subgr_fnames.begin(); it != subgr_fnames.end(); it++) {
+        cv22_subgraphs[it->first].filename = it->second;
+    }
+
     auto n = make_object<CV22Module>(cv22_subgraphs);
     return Module(n);
   }
