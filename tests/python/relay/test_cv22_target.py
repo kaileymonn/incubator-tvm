@@ -39,7 +39,7 @@ def test_cv22():
     #============= Constructing a simple graph ==============
     dtype = "float32"
     i_shape = (1, 3, 224, 224) # NCHW
-    out_shape = (1, 32, 224, 224) # NCHW
+    o_shape = (1, 3, 224, 224) # NCHW
 
     data0 = relay.var('data0', shape=(i_shape), dtype=dtype)
     data1 = relay.var('data1', shape=(i_shape), dtype=dtype)
@@ -94,7 +94,7 @@ def test_cv22():
     for name, data in map_inputs.items():
         rt_mod.set_input(name, data)
     rt_mod.run()
-    out = tvm.nd.empty(out_shape, ctx=tvm.cpu())
+    out = tvm.nd.empty(o_shape, ctx=tvm.cpu())
     out = rt_mod.get_output(0, out)
 
 if __name__ == '__main__':
