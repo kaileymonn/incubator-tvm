@@ -66,6 +66,7 @@ def test_cv22():
     # remove existing dir
     output_folder = '/tmp/test_amba/'
     rmtree(output_folder, ignore_errors=True)
+    output_folder += '/prepare/'
 
     module_list = partitions_to_modules(mod_partition)
     for name, module in module_list.items():
