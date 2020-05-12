@@ -71,8 +71,7 @@ class CV22Module : public runtime::ModuleNode {
       LOG(INFO) << "Filename: " << cv22_subgraphs_[name].filename;
       std::string cmd = "evaluate.py --metagraph " + cv22_subgraphs_[name].filename;
 
-      std::string inp_dir = "/tmp/amba/";
-      mkdir(inp_dir.c_str(), 0777);
+      std::string inp_dir = "/tmp/test_amba/";
 
       std::vector<std::string>& inputs = cv22_subgraphs_[name].inputs;
       for (size_t i = 0; i < inputs.size(); ++i) {
@@ -98,9 +97,7 @@ class CV22Module : public runtime::ModuleNode {
           if (fout.is_open()) {
               fout.write((char*) data, buf_size*sizeof(float));
           }
-          else {
-              // (TBD) error
-          }
+          else std::cout << "Unable to open file";
 
           fout.close();
 
@@ -111,11 +108,33 @@ class CV22Module : public runtime::ModuleNode {
       for (size_t o = 0; o < outputs.size(); ++o) {
           LOG(INFO) << "Output " << o << ": " << outputs[o];
       }
-      cmd += " --output_folder amba_tvm_test/evaluation_outputs --log_dir amba_tvm_test/evaluation_outputs/logs";
+      cmd += " --output_folder /tmp/test_amba/eval/outputs --log_dir /tmp/test_amba/eval/logs";
 
       LOG(INFO) << "Cmd: " << cmd;
 
       system(cmd.c_str());
+
+      if ((args.size() - inputs.size()) != 1) {
+          // (TBD) error: only one output case supported
+      }
+
+      // (TBD) 
+      std::string out_fname = "/tmp/test_amba/eval/outputs/node_3_iter_0.bin";
+      std::ifstream fin;
+      fin.open(out_fname, std::ios::binary);
+
+      if (fin.is_open()) {
+          int out_idx = inputs.size();
+          DLTensor* arg = args[out_idx];
+          char* data = reinterpret_cast<char*>(arg->data);
+
+          int size = fin.tellg();
+          fin.seekg(0, std::ios::beg);
+          fin.read(data, size*4);
+          fin.close();
+       }
+
+       else std::cout << "Unable to open file";
 
     });
   }

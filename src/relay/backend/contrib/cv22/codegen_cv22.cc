@@ -63,7 +63,7 @@ class CV22ModuleCodegen : public CSourceModuleCodegenBase {
     subgraph_attr_t attr = {};
 
     // CVFlow compiler is expected to create ambapb in the curren location
-    attr.filename = "amba_tvm_test/" + sid + ".ambapb.ckpt.onnx";
+    attr.filename = "/tmp/test_amba/prepare/" + sid + ".ambapb.ckpt.onnx";
 
     // (TBD) check if file exists
 
