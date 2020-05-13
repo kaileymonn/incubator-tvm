@@ -349,6 +349,70 @@ TVM_DLL Pass Inline();
  */
 TVM_DLL Pass RemoveUnusedFunctions(Array<runtime::String> entry_functions);
 
+/*!
+ *
+ * \brief Partition a Relay graph to subgraph with unordered operators.
+ *
+ * \param op_attrs the specific operators to fuse.
+ * \param func_name the name of the function.
+ * \param compiler the compiler of the function.
+ * \param device_type the device to run the subgraph.
+ * \param dtype specific the data type to cast.
+ *
+ * \return the registered pass that partitions the Relay function.
+ */
+TVM_DLL Pass PartitionGraphInUnorder(Array<Array<ObjectRef>> op_attrs,
+		String func_name, String compiler, int device_type, DataType data_type);
+
+/*!
+ *
+ * \brief Partition a Relay graph to subgraph with ordered operators.
+ *
+ * \param op_attrs the specific operators to fuse.
+ * \param include the included operators, which is None in op_attrs, to fuse.
+ * \param exclude the excluded operators, which is None in op_attrs, not to fuse.
+ * \param func_name the name of the function.
+ * \param compiler the compiler of the function.
+ * \param device_type the device to run the subgraph.
+ * \param dtype specific the data type to cast.
+ *
+ * \return the registered PartitionGraphInUnorder pass.
+ */
+TVM_DLL Pass PartitionGraphInOrder(Array<Array<ObjectRef>> op_attrs, Array<Array<ObjectRef>> include, Array<Array<ObjectRef>> exclude,
+		String func_name, String compiler, int device_type, DataType data_type);
+
+/*!
+ *
+ * \brief Partition a Relay graph to subgraph with Relay expression.
+ *
+ * \param func_list the list of subgraphs to fused.
+ * \param device_type the device to run the subgraph.
+ * \param dtype specific the data type to cast.
+ *
+ * \return the registered PartitionGraphInOrder pass.
+ */
+TVM_DLL Pass PartitionGraphByExpr(Array<Array<ObjectRef>> func_list, int device_type,
+		DataType data_type);
+/*!
+ *
+ * \brief Defuse Relay function to multiply operators.
+ *
+ * \return the registered PartitionGraphByExpr pass.
+ */
+TVM_DLL Pass DefuseOps();
+/*!
+ *
+ * \brief Fuse operators in an expr to a larger operator according to some rules.
+ *
+ * \param op_attrs the specific operator to fuse.
+ * \param device_type the device to run the subgraph.
+ * \param fuse_opt_level the level of fuse optimization. -1 indicates that the
+ * 		        level will be inferred from pass context.
+ *
+ * \return the registered FuseSpecifiedOps pass.
+ */
+TVM_DLL Pass FuseSpecifiedOps(Array<Array<ObjectRef>> op_attrs, int device_type, int fuse_opt_level);
+
 }  // namespace transform
 
 /*!
@@ -461,7 +525,6 @@ TVM_DLL Function UnCPS(const Function& f);
  * \return the deduplicated expression.
  */
 TVM_DLL Expr DeDup(const Expr& e);
-
 }  // namespace relay
 }  // namespace tvm
 

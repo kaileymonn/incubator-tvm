@@ -1112,7 +1112,7 @@ class OneHot(OnnxOpConverter):
         # Extract the datatype of the output from on_value.
         dtype = infer_type(on_value).checked_type.dtype
         # Convert depth into an integer.
-        depth = int(infer_value(depth, params).asnumpy()[0])
+        depth = np.asscalar(infer_value(depth, params).asnumpy())
         # set default value when axis is not set in the model
         if 'axis' not in attr:
             attr['axis'] = -1
@@ -1484,6 +1484,16 @@ class TopK(OnnxOpConverter):
     """
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
+        k = attr['k']
+        axis = attr.get('axis', -1)
+        return _op.topk(inputs, k, axis)
+    @classmethod
+    def _impl_v10(cls, inputs, attr, params):
+        k = np.asscalar(infer_value(inputs[1], params).asnumpy())
+        axis = attr.get('axis', -1)
+        return _op.topk(inputs[0], k, axis)
+    @classmethod
+    def _impl_v11(cls, inputs, attr, params):
         if len(inputs) != 2:
             raise ValueError("Expect 2 input only")
         axis = attr.get("axis", -1)
@@ -1492,9 +1502,9 @@ class TopK(OnnxOpConverter):
         if largest == 0:
             raise ValueError("TVM only supports finding TopK largest elements")
 
-        K = int(infer_value(inputs[1], params).asnumpy()[0])
+        K = np.asscalar(infer_value(inputs[1], params).asnumpy())
 
-        return _op.topk(inputs[0], k=K, axis=axis)
+        return _op.topk(inputs[0], K, axis)
 
 
 class RoiAlign(OnnxOpConverter):

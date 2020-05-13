@@ -139,6 +139,9 @@ Target CreateTarget(const std::string& target_name,
   } else if (target_name == "hexagon") {
     t->keys_array.push_back("hexagon");
     t->device_type = kDLHexagon;
+  }else if (target_name == "onnx") {
+	t->keys_array.push_back("onnx");
+	t->device_type = kDLONNX;
   } else {
     LOG(ERROR) << "Unknown target name " << target_name;
     return target::stackvm();
