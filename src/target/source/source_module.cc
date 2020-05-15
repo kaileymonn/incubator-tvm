@@ -228,14 +228,33 @@ class ONNXModuleNode : public runtime::ModuleNode {
 			  		  ss<<(char)std::stoi(byte,0,16);
 			  		  i += 1;
 			  		  break;
-			  	  }case 't':{
-			  		  ss<<'\t';
+			  	  }case '0':{
+			  		  ss<<'\0';
 			  		  break;
-			  	  }
-			  	  case 'n':{
+			  	  }case 'n':{
 			  		  ss<<'\n';
 			  		  break;
+			  	  }case 'r':{
+			  		  ss<<'\r';
+			  		  break;
+			  	  }case 'b':{
+			  		  ss<<'\b';
+			  		  break;
+			  	  }case 'a':{
+			  		  ss<<'\a';
+			  		  break;
+			  	  }case '\\':{
+			  		  ss<<'\\';
+			  		  break;
+			  	  }case '\'':{
+			  		  ss<<'\'';
+			  		  break;
 			  	  }
+			  	  case '"':{
+			  		  ss<<'\"';
+			  		  break;
+			  	  }
+
 			  	  default:{
 			  		  ss<<'\\'<<data[i];
 			  		  break;
