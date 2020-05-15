@@ -579,7 +579,7 @@ class Split(ToOnnxOpConverter):
         return split
     @classmethod
     def _impl_v1(cls, graph, inputs, attrs={}, args=None):
-        size_axis = expr.args[0].checked_type.concrete_shape[attrs['axis']]
+        size_axis = args[0].checked_type.concrete_shape[attrs['axis']]
         split = cls.convert_split(attrs['indices_or_sections'], size_axis)
         return AttrCvt(cls.name, extras={'split': split}, ignores=['indices_or_sections'], counts_out=len(split))(graph, inputs, attrs)
     @classmethod
@@ -587,6 +587,12 @@ class Split(ToOnnxOpConverter):
         size_axis = args[0].checked_type.concrete_shape[attrs['axis']]
         split = cls.convert_split(attrs['indices_or_sections'], size_axis)
         return AttrCvt(cls.name, extras={'split': split}, ignores=['indices_or_sections'], counts_out=len(split))(graph, inputs, attrs)
+    @classmethod
+    def _impl_v11(cls, graph, inputs, attrs={}, args=None):
+        size_axis = args[0].checked_type.concrete_shape[attrs['axis']]
+        split = cls.convert_split(attrs['indices_or_sections'], size_axis)
+        return AttrCvt(cls.name, extras={'split': split}, ignores=['indices_or_sections'], counts_out=len(split))(graph, inputs, attrs)
+
 class Tile(ToOnnxOpConverter):
     """ Operator converter for tile op."""
     name = 'Tile'
@@ -958,6 +964,14 @@ class TopK(ToOnnxOpConverter):
             return [topk[1]]
         else:
             ValueError('No such ret_type of topK: %s'%ret_type)
+# class NonMaxSuppression(ToOnnxOpConverter):
+#      """ Operator converter for vision.non_max_suppression op."""
+#     @classmethod
+#     def _impl_v11(cls, graph, inputs, attrs={}, args=None):   
+#         data, valid_count = inputs
+#          = ONNXNode("Split")([data], {"axis":-1, "split":[]})
+
+
 # compatible ops that do NOT require any conversion.
 _identity_list = []
 
@@ -1095,7 +1109,8 @@ def _get_impl_map(opset):
         'image.resize': Resize.get_impl(opset),
         'argwhere': Argwhere.get_impl(opset),
         'fused_nonzero':NonZero.get_impl(opset),
-        'topk':TopK.get_impl(opset)
+        'topk':TopK.get_impl(opset),
+#         'vision.non_max_suppression': NonMaxSuppression.get_impl(opset),
     }
 def tvm_array_to_list(object):
     """ Convert tvm.ir.container.Array to List."""
@@ -1223,7 +1238,7 @@ class ONNXGenerator(ExprVisitor):
         # Make model
         return self.graph.make_model()
     def get_func_attrs(self, name, func_attrs):
-        name = name[:-2] if name[-1].isdigit() else name
+        name = name.rsplit('_',1)[0] if name[-1].isdigit() else name
         new_attrs={}
         def get_func_major_op(func_name):
             return func_name.replace('_nn_', '_nn.').split('_')[1]
@@ -1256,8 +1271,8 @@ class ONNXGenerator(ExprVisitor):
         if not self.in_func:
             self.visit(op.tuple_value)
             self.name_map[op] = [self.name_map[op.tuple_value][op.index]]
-            self.graph.final_outputs = [self.graph.final_outputs[op.index]]
-            self.graph.ret_types = [self.graph.ret_types[op.index]]
+            self.graph.final_outputs = self.name_map[op]
+            self.graph.ret_types = op.tuple_value.checked_type.fields[op.index]
         else:
             super(GraphVisitor, self).visit_tuple_getitem(t)    
     def visit_call(self, c):
