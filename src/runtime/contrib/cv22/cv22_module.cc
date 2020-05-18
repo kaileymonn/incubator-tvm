@@ -78,7 +78,6 @@ class CV22Module : public runtime::ModuleNode {
           LOG(INFO) << "Input " << i << ": " << inputs[i];
 
           DLTensor* arg = args[i];
-
           float* data = reinterpret_cast<float*>(arg->data);
 
           int buf_size = 1;
@@ -90,52 +89,55 @@ class CV22Module : public runtime::ModuleNode {
           LOG(INFO) << "Size: " << buf_size;
 
           std::string in_fname = inp_dir + inputs[i] + ".bin";
-
           std::ofstream fout;
           fout.open(in_fname, std::ios::binary);
-
           if (fout.is_open()) {
               fout.write((char*) data, buf_size*sizeof(float));
           }
-          else std::cout << "Unable to open file";
-
+          else {
+              LOG(ERROR)  << "Unable to open file";
+              exit(-1);
+          }
           fout.close();
 
           cmd += " --inputdata " + inputs[i] + "=" + in_fname;
       }
 
+      // (TBD) handle multi output case
       std::vector<std::string>& outputs = cv22_subgraphs_[name].outputs;
-      for (size_t o = 0; o < outputs.size(); ++o) {
-          LOG(INFO) << "Output " << o << ": " << outputs[o];
+      if (outputs.size() != 1) {
+          LOG(ERROR) << "Multiple output case not yet handled";
+          exit(-1);
       }
+
       cmd += " --output_folder /tmp/test_amba/eval/outputs --log_dir /tmp/test_amba/eval/logs";
-
       LOG(INFO) << "Cmd: " << cmd;
-
       system(cmd.c_str());
 
-      if ((args.size() - inputs.size()) != 1) {
-          // (TBD) error: only one output case supported
-      }
-
-      // (TBD) 
-      std::string out_fname = "/tmp/test_amba/eval/outputs/node_3_iter_0.bin";
+      std::string out_fname = "/tmp/test_amba/eval/outputs/" + outputs[0] + "_iter_0.bin";
       std::ifstream fin;
       fin.open(out_fname, std::ios::binary);
 
       if (fin.is_open()) {
           int out_idx = inputs.size();
           DLTensor* arg = args[out_idx];
-          char* data = reinterpret_cast<char*>(arg->data);
+          float* data = reinterpret_cast<float*>(arg->data);
 
+          // get length of the file
+          fin.seekg(0, std::ios::end);
           int size = fin.tellg();
           fin.seekg(0, std::ios::beg);
-          fin.read(data, size*4);
+
+          fin.read(reinterpret_cast<char*>(data), size);
+          LOG(INFO) << "Number of bytes read: " << fin.gcount();
+
           fin.close();
        }
 
-       else std::cout << "Unable to open file";
-
+       else {
+           LOG(ERROR) << "Unable to open file";
+           exit(-1);
+       }
     });
   }
 
