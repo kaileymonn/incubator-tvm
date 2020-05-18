@@ -35,7 +35,9 @@ from tvm.relay.converter import to_onnx
 # CVFlow imports
 from cvflow_compiler import partitions_to_modules,cvflow_compilation
 
-def test_cv22():
+TEST_CASES = ['full_graph_offload', 'hetero']
+
+def test_cv22(test_case, debug=0):
     #============= Constructing a simple graph ==============
     dtype = "float32"
     i_shape = (1, 1, 2, 4) # NCHW
@@ -45,14 +47,23 @@ def test_cv22():
     data1 = relay.var('data1', shape=(i_shape), dtype=dtype)
     data2 = relay.var('data2', shape=(i_shape), dtype=dtype)
 
-    begin0 = relay.annotation.compiler_begin(data0, "cv22")
-    begin1 = relay.annotation.compiler_begin(data1, "cv22")
-    begin2 = relay.annotation.compiler_begin(data2, "cv22")
+    if test_case == 'full_graph_offload':
+        begin0 = relay.annotation.compiler_begin(data0, "cv22")
+        begin1 = relay.annotation.compiler_begin(data1, "cv22")
+        begin2 = relay.annotation.compiler_begin(data2, "cv22")
+        node0  = relay.multiply(begin0, begin1)
+        node1  = relay.add(node0, begin2)
+        out    = relay.annotation.compiler_end(node1, "cv22")
 
-    node0  = relay.multiply(begin0, begin1)
-    node1  = relay.add(node0, begin2)
+    elif test_case == 'hetero':
+        begin0 = relay.annotation.compiler_begin(data0, "cv22")
+        begin1 = relay.annotation.compiler_begin(data1, "cv22")
+        node0  = relay.multiply(begin0, begin1)
+        end0   = relay.annotation.compiler_end(node0, "cv22")
+        out    = relay.add(end0, data2) # arm
 
-    out    = relay.annotation.compiler_end(node1, "cv22")
+    else:
+        raise ValueError('Unknown test case type %s, supported %s' % (test_case, TEST_CASES))
 
     f2  = relay.Function([data0, data1, data2], out)
     mod = tvm.IRModule.from_expr(f2)
@@ -65,7 +76,7 @@ def test_cv22():
     print('---------- Partitioned graph ----------')
     print(mod_partition.astext(show_meta_data=False))
 
-    # remove existing dir
+    # remove existing dir and create new
     output_folder = '/tmp/test_amba/'
     rmtree(output_folder, ignore_errors=True)
     output_folder += 'prepare/'
@@ -88,14 +99,12 @@ def test_cv22():
     with relay.build_config(opt_level=3, disabled_pass=["AlterOpLayout"]):
         json, lib, params = relay.build(mod_partition, target='llvm')
 
-    ''
     # Serialize
     with open('compiled.json', 'w') as f_graph_json:
         f_graph_json.write(json)
     with open('compiled.params', 'wb') as f_params:
         f_params.write(relay.save_param_dict(params))
     #lib.save('compiled.cv22')
-    ''
 
     # test runtime
     i0_data = np.random.randint(0, 100, i_shape).astype(dtype)
@@ -107,22 +116,36 @@ def test_cv22():
     for name, data in map_inputs.items():
         rt_mod.set_input(name, data)
     rt_mod.run()
-    out = tvm.nd.empty(o_shape, ctx=tvm.cpu())
-    out = rt_mod.get_output(0, out)
-
-    print("i0_data:")
-    print(i0_data)
-    print("i1_data:")
-    print(i1_data)
-    print("i2_data:")
-    print(i2_data)
-    print("out_data:")
-    print(out)
+    tgt_out = tvm.nd.empty(o_shape, ctx=tvm.cpu())
+    tgt_out = rt_mod.get_output(0, tgt_out)
+    tgt_out = tgt_out.asnumpy()
 
     ref_out = (i0_data * i1_data) + i2_data
-    print("ref_data:")
-    print(ref_out)
-    print()
+
+    if debug > 0:
+        print("i0_data:")
+        print(i0_data)
+        print("i1_data:")
+        print(i1_data)
+        print("i2_data:")
+        print(i2_data)
+        print("out_data:")
+        print(tgt_out)
+        print("ref_data:")
+        print(ref_out)
+        print()
+
+    if not np.allclose(tgt_out, ref_out):
+        print('Target and reference does not match')
+        return 0
+
+    else:
+        return 1
 
 if __name__ == '__main__':
-    test_cv22()
+    num_passed  = 0
+    for t in TEST_CASES:
+        num_passed += test_cv22(test_case=t)
+
+    print('Total number of test cases: %d' % len(TEST_CASES))
+    print('Number of test cases passed: %d' % num_passed)

@@ -69,10 +69,11 @@ class CV22Module : public runtime::ModuleNode {
       LOG(INFO) << "CV22Module GetFunction PackedFunc";
 
       LOG(INFO) << "Filename: " << cv22_subgraphs_[name].filename;
-      std::string cmd = "evaluate.py --metagraph " + cv22_subgraphs_[name].filename;
 
+      std::string cmd = "evaluate.py --metagraph " + cv22_subgraphs_[name].filename;
       std::string inp_dir = "/tmp/test_amba/";
 
+      // Save inputs to file
       std::vector<std::string>& inputs = cv22_subgraphs_[name].inputs;
       for (size_t i = 0; i < inputs.size(); ++i) {
           LOG(INFO) << "Input " << i << ": " << inputs[i];
@@ -103,41 +104,41 @@ class CV22Module : public runtime::ModuleNode {
           cmd += " --inputdata " + inputs[i] + "=" + in_fname;
       }
 
-      // (TBD) handle multi output case
-      std::vector<std::string>& outputs = cv22_subgraphs_[name].outputs;
-      if (outputs.size() != 1) {
-          LOG(ERROR) << "Multiple output case not yet handled";
-          exit(-1);
-      }
-
+      // Run ades
       cmd += " --output_folder /tmp/test_amba/eval/outputs --log_dir /tmp/test_amba/eval/logs";
       LOG(INFO) << "Cmd: " << cmd;
       system(cmd.c_str());
 
-      std::string out_fname = "/tmp/test_amba/eval/outputs/" + outputs[0] + "_iter_0.bin";
-      std::ifstream fin;
-      fin.open(out_fname, std::ios::binary);
+      // Read outputs from file
+      std::vector<std::string>& outputs = cv22_subgraphs_[name].outputs;
+      int out_idx = inputs.size();
+      for (size_t o = 0; o < outputs.size(); ++o,++out_idx) {
+          LOG(INFO) << "Output " << o << ": " << outputs[o];
 
-      if (fin.is_open()) {
-          int out_idx = inputs.size();
-          DLTensor* arg = args[out_idx];
-          float* data = reinterpret_cast<float*>(arg->data);
+          std::string out_fname = "/tmp/test_amba/eval/outputs/" + outputs[o] + "_iter_0.bin";
+          std::ifstream fin;
+          fin.open(out_fname, std::ios::binary);
 
-          // get length of the file
-          fin.seekg(0, std::ios::end);
-          int size = fin.tellg();
-          fin.seekg(0, std::ios::beg);
+          if (fin.is_open()) {
+              DLTensor* arg = args[out_idx];
+              float* data = reinterpret_cast<float*>(arg->data);
 
-          fin.read(reinterpret_cast<char*>(data), size);
-          LOG(INFO) << "Number of bytes read: " << fin.gcount();
+              // get length of the file
+              fin.seekg(0, std::ios::end);
+              int size = fin.tellg();
+              fin.seekg(0, std::ios::beg);
 
-          fin.close();
-       }
+              fin.read(reinterpret_cast<char*>(data), size);
+              LOG(INFO) << "Number of bytes read: " << fin.gcount();
 
-       else {
-           LOG(ERROR) << "Unable to open file";
-           exit(-1);
-       }
+              fin.close();
+          }
+
+          else {
+              LOG(ERROR) << "Unable to open file " << out_fname;
+              exit(-1);
+          }
+      }
     });
   }
 
