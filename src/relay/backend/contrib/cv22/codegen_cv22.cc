@@ -67,11 +67,21 @@ class CV22ModuleCodegen : public CSourceModuleCodegenBase {
 
     // (TBD) check if file exists
 
+    // input list
     for (size_t i = 0; i < func->params.size(); ++i) {
         attr.inputs.push_back(func->params[i]->name_hint());
     }
 
-    // (TBD) get outputs from print graph summary json
+    // get outputs from env variable created during cvflow compilation
+    std::string output_list = this->getEnvVar("CV22_OUTPUTS_LIST");
+    if (output_list.empty()) {
+        LOG(ERROR) << "Env variable CV22_OUTPUTS_LIST not found";
+        exit(-1);
+    }
+
+    // (TBD) convert comma separated string to vec
+    // for now assumed as single output
+    attr.outputs.push_back(output_list);
 
     cv22_subgraphs_[sid] = attr;
   }
@@ -100,6 +110,16 @@ class CV22ModuleCodegen : public CSourceModuleCodegenBase {
  private:
   /*! \brief Map of external symbol to serialized Relay functions. */
   std::unordered_map<std::string, subgraph_attr_t> cv22_subgraphs_;
+
+  std::string getEnvVar(std::string const& key) {
+    char * val = getenv( key.c_str() );
+
+    // clear variable
+    unsetenv(key.c_str());
+
+    return val == NULL ? std::string("") : std::string(val);
+  }
+
 };
 
 /*!
