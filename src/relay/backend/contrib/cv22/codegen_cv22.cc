@@ -65,7 +65,8 @@ class CV22ModuleCodegen : public CSourceModuleCodegenBase {
     // CVFlow compiler is expected to create ambapb in the curren location
     attr.filename = "/tmp/test_amba/prepare/" + sid + ".ambapb.ckpt.onnx";
 
-    // (TBD) check if file exists
+    // check if file exists
+    std::ifstream f(attr.filename);
 
     // input list
     for (size_t i = 0; i < func->params.size(); ++i) {

@@ -102,7 +102,7 @@ def create_splits_json(dra_dict, primary_outputs, vp_name, output_folder):
 
     attr_dict = {}
     attr_dict['cnngen_flags'] = '-c coeff-force-fx16,act-force-fx16'
-    attr_dict['vas_flags']    = '-auto -v'
+    attr_dict['vas_flags']    = '-v'
 
     vp_dict = {}
     vp_dict['type']  = 'ORCVP'
@@ -142,8 +142,11 @@ def cvflow_compilation(model_path, output_name, output_folder):
 
     # set outputs list as env variable
     # this will be used by codegen
-    pr_outputs = ','.join(list(primary_outputs.keys()))
-    set_env_variable('CV22_OUTPUTS_LIST', pr_outputs)
+    pr_outputs_list = list(primary_outputs.keys())
+    if len(pr_outputs_list) != 1:
+        raise ValueError('Multiple output case not yet supported')
+
+    set_env_variable('CV22_OUTPUTS_LIST', ','.join(pr_outputs_list))
 
     graphdesc_bytes = None
     with open(graphdesc_path, mode='rb') as f:
