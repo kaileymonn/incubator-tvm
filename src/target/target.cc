@@ -141,7 +141,7 @@ Target CreateTarget(const std::string& target_name,
     t->device_type = kDLHexagon;
   }else if (target_name == "onnx") {
 	t->keys_array.push_back("onnx");
-	t->device_type = kDLONNX;
+	//t->device_type = kDLONNX; // comment for build error
   } else {
     LOG(ERROR) << "Unknown target name " << target_name;
     return target::stackvm();
