@@ -31,6 +31,7 @@ from tvm.relay.function import Function
 
 # Onnx imports
 from tvm.relay.converter import to_onnx
+import onnx
 
 # CVFlow imports
 from cvflow_compiler import partitions_to_modules,cvflow_compilation
@@ -86,7 +87,8 @@ def test_cv22(test_case, debug=0):
     for name, module in module_list.items():
         # convert to onnx
         onnx_path = name+".onnx"
-        onnx_model = to_onnx(module, {}, name, path=onnx_path)
+        onnx_model = to_onnx(module, graph_name=name)
+        onnx.save(onnx_model, onnx_path)
         print('Saved onnx file %s to disk\n' % onnx_path)
 
         # invoke cvflow compilation

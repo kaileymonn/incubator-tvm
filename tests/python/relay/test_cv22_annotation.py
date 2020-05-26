@@ -91,7 +91,8 @@ def test_manual():
     module_list = partitions_to_modules(mod2_partition)
     for name, module in module_list.items():
         onnx_path = name+".onnx"
-        onnx_model = to_onnx(module, {}, name, path=onnx_path)
+        onnx_model = to_onnx(module, graph_name=name)
+        onnx.save(onnx_model, onnx_path)
 
 def test_classification():
     # TODO: Debug errors. ## == TVM ERROR in parsing. # == Some error in onnx or partitioning
@@ -128,7 +129,8 @@ def test_classification():
         module_list = partitions_to_modules(mod)
         for name, module in module_list.items():
             onnx_path = name+".onnx"
-            onnx_model = to_onnx(module, {}, name, path=onnx_path)
+            onnx_model = to_onnx(module, graph_name=name)
+            onnx.save(onnx_model, onnx_path)
 
 if __name__ == '__main__':
     #test_manual()
