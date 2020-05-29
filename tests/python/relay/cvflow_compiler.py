@@ -129,7 +129,7 @@ def cvflow_compilation(model_path, output_name, output_folder):
 
     # get graph info
     model, load_info = OnnxGraphUtils.load_model(model_path)
-    model_summary, gs_recs = OnnxGraphUtils.determine_graph_info(model)
+    model_summary, gs_recs = OnnxGraphUtils.determine_graph_info(model, None)
 
     primary_inputs  = model_summary['PRIMARY_INPUTS']
     primary_outputs = model_summary['PRIMARY_OUTPUTS']
