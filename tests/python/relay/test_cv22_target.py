@@ -36,19 +36,31 @@ import onnx
 # CVFlow imports
 from cvflow_compiler import partitions_to_modules,cvflow_compilation
 
-TEST_CASES = ['full_graph_offload', 'hetero']
+TEST_CASES = ['full_tvm', 'full_graph_offload', 'hetero']
 
-def test_cv22(test_case, debug=0):
-    #============= Constructing a simple graph ==============
-    dtype = "float32"
-    i_shape = (1, 1, 2, 4) # NCHW
-    o_shape = (1, 1, 2, 4) # NCHW
+def gen_inputs(i_shape, o_shape, dtype):
+
+    # Note: order assumed
+    inputs = []
+    inputs.append(np.random.randint(0, 100, i_shape).astype(dtype))
+    inputs.append(np.random.randint(0, 100, i_shape).astype(dtype))
+    inputs.append(np.random.randint(0, 100, i_shape).astype(dtype))
+
+    return inputs
+
+def test_cv22(test_case, inputs, o_shape):
+
+    #============= Construct a simple graph ==============
 
     data0 = relay.var('data0', shape=(i_shape), dtype=dtype)
     data1 = relay.var('data1', shape=(i_shape), dtype=dtype)
     data2 = relay.var('data2', shape=(i_shape), dtype=dtype)
 
-    if test_case == 'full_graph_offload':
+    if test_case == 'full_tvm':
+        node0  = relay.multiply(data0, data1)
+        out    = relay.add(node0, data2)
+
+    elif test_case == 'full_graph_offload':
         begin0 = relay.annotation.compiler_begin(data0, "cv22")
         begin1 = relay.annotation.compiler_begin(data1, "cv22")
         begin2 = relay.annotation.compiler_begin(data2, "cv22")
@@ -106,13 +118,10 @@ def test_cv22(test_case, debug=0):
         f_graph_json.write(json)
     with open('compiled.params', 'wb') as f_params:
         f_params.write(relay.save_param_dict(params))
-    #lib.save('compiled.cv22')
+    lib.save('compiled.cv22')
 
     # test runtime
-    i0_data = np.random.randint(0, 100, i_shape).astype(dtype)
-    i1_data = np.random.randint(0, 100, i_shape).astype(dtype)
-    i2_data = np.random.randint(0, 100, i_shape).astype(dtype)
-    map_inputs = {"data0": i0_data, "data1": i1_data, "data2":i2_data}
+    map_inputs = {"data0": inputs[0], "data1": inputs[1], "data2":inputs[2]}
 
     rt_mod = tvm.contrib.graph_runtime.create(json, lib, ctx=tvm.cpu())
     for name, data in map_inputs.items():
@@ -122,32 +131,44 @@ def test_cv22(test_case, debug=0):
     tgt_out = rt_mod.get_output(0, tgt_out)
     tgt_out = tgt_out.asnumpy()
 
-    ref_out = (i0_data * i1_data) + i2_data
+    return tgt_out
 
+def verify_results(inputs, results, debug=0):
+
+    ref_out = (inputs[0] * inputs[1]) + inputs[2]
     if debug > 0:
-        print("i0_data:")
-        print(i0_data)
-        print("i1_data:")
-        print(i1_data)
-        print("i2_data:")
-        print(i2_data)
-        print("out_data:")
-        print(tgt_out)
-        print("ref_data:")
+        print("Reference result:")
         print(ref_out)
         print()
 
-    if not np.allclose(tgt_out, ref_out):
-        print('Target and reference does not match')
-        return 0
+    num_passed = 0
+    for t in results:
+        _out = results[t]
+        if debug > 0:
+            print("%s result:" % t)
+            print(ref_out)
+            print()
 
-    else:
-        return 1
+        if np.allclose(_out, ref_out):
+            num_passed += 1
+
+        else:
+            print('%s test FAILED\n' % t)
+
+    print('Total number of test cases: %d' % len(results))
+    print('Number of test cases passed: %d' % num_passed)
 
 if __name__ == '__main__':
-    num_passed  = 0
-    for t in TEST_CASES:
-        num_passed += test_cv22(test_case=t)
 
-    print('Total number of test cases: %d' % len(TEST_CASES))
-    print('Number of test cases passed: %d' % num_passed)
+    dtype = "float32"
+    i_shape = (1, 1, 2, 4) # NCHW
+    o_shape = (1, 1, 2, 4) # NCHW
+
+    inputs = gen_inputs(i_shape, o_shape, dtype)
+
+    results = {}
+    for t in TEST_CASES:
+        results[t] = test_cv22(t, inputs, o_shape)
+
+    verify_results(inputs, results, debug=1)
+
