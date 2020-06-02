@@ -99,12 +99,12 @@ def test_classification():
 
     model_list = {
         'ResNet18_v1' : 'ResNet18_v1',
-        'MobileNet1.0' : 'MobileNet1',
+        #'MobileNet1.0' : 'MobileNet1',
         ##'VGG11' : 'VGG11',
         #'SqueezeNet1.0' : 'SqueezeNet1.0',
         ##'DenseNet121' : 'DenseNet121',
         ##'AlexNet' : 'AlexNet',
-        'InceptionV3' : 'InceptionV3',
+        #'InceptionV3' : 'InceptionV3',
 
     }
 
@@ -116,12 +116,20 @@ def test_classification():
         print('---------- Original Graph ----------')
         mod = relay.transform.RemoveUnusedFunctions()(mod)
         print(mod.astext(show_meta_data=False))
+
+        print('---------- Pruned Graph ----------')
+        from tvm.relay.build_module import bind_params_by_name
+        mod['main'] = bind_params_by_name(mod['main'], params)
+        print(mod.astext(show_meta_data=False))
+
         print("---------- Annotated Graph ----------")
         mod = transform.AnnotateTarget("cv22")(mod)
         print(mod.astext(show_meta_data=False))
+
         print("---------- Merge Compiler Regions ----------")
         mod = transform.MergeCompilerRegions()(mod)
         print(mod.astext(show_meta_data=False))
+
         print("---------- Partioned Graph ----------")
         mod = transform.PartitionGraph()(mod)
         print(mod.astext(show_meta_data=False))
