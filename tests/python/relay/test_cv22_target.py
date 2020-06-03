@@ -118,12 +118,19 @@ def test_cv22(test_case, inputs, o_shape):
         f_graph_json.write(json)
     with open('compiled.params', 'wb') as f_params:
         f_params.write(relay.save_param_dict(params))
-    lib.save('compiled.cv22')
+    lib.export_library('compiled.so')
+
+    # Deserialize
+    with open('compiled.json', 'r') as f_graph_json:
+        graph = f_graph_json.read()
+    with open('compiled.params', 'rb') as f_params:
+        params = tvm.relay.load_param_dict(f_params.read())
 
     # test runtime
     map_inputs = {"data0": inputs[0], "data1": inputs[1], "data2":inputs[2]}
 
-    rt_mod = tvm.contrib.graph_runtime.create(json, lib, ctx=tvm.cpu())
+    rt_mod = tvm.contrib.graph_runtime.create(graph, lib, ctx=tvm.cpu())
+    rt_mod.set_input(**params)
     for name, data in map_inputs.items():
         rt_mod.set_input(name, data)
     rt_mod.run()
