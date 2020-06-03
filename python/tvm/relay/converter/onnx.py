@@ -361,28 +361,31 @@ class MaxPool(ToOnnxOpConverter):
         transforms ={
             'dilation':'dilations',
             'pool_size': 'kernel_shape',
-            'padding':'pads'
+            'padding': ('pads', None, cls._convert_pads)
         }
         ignores=['layout','ceil_mode']
         return AttrCvt(cls.name, transforms = transforms ,ignores = ignores)(graph, inputs, attrs)
     @classmethod
     def _impl_v11(cls, graph, inputs, attrs={}, args=None):
         transforms ={
-            'dilation':'dilations',
+            'dilation': 'dilations',
             'pool_size': 'kernel_shape',
-            'padding':'pads'
+            'padding': ('pads', None, cls._convert_pads)
         }
         ignores=['layout']
         return AttrCvt(cls.name, transforms = transforms ,ignores = ignores)(graph, inputs, attrs)
     @classmethod
     def _impl_v12(cls, graph, inputs, attrs={}, args=None):
         transforms ={
-            'dilation':'dilations',
+            'dilation': 'dilations',
             'pool_size': 'kernel_shape',
-            'padding':'pads'
+            'padding': ('pads', None, cls._convert_pads)
         }
         ignores=['layout']
         return AttrCvt(cls.name, transforms = transforms ,ignores = ignores)(graph, inputs, attrs)
+    @classmethod
+    def _convert_pads(cls, padding):
+        return padding + padding
 class MaxPool1D(MaxPool):
     """ Operator converter for nn.max_pool1d op."""
 class MaxPool2D(MaxPool):
